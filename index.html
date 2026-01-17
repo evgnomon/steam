@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stimulus Hello</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 400px;
+      margin: 2rem auto;
+      padding: 1rem;
+    }
+    input {
+      padding: 0.5rem;
+      font-size: 1rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    #output {
+      margin-left: 0.5rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <div data-controller="hello">
+    <input data-hello-target="name" type="text" placeholder="Enter your name" data-action="keydown.enter->hello#greet">
+    <button data-action="click->hello#greet">Greet</button>
+    <span data-hello-target="output"></span>
+  </div>
+
+  <script type="module">
+    import { Application, Controller } from "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js"
+
+    // Start Stimulus application
+    const application = Application.start()
+
+    // Define the Hello controller
+    class HelloController extends Controller {
+      static targets = ["name", "output"]
+
+      greet() {
+        const name = this.nameTarget.value.trim()
+        this.outputTarget.textContent = name ? `Hello, ${name}!` : "Hello!"
+      }
+    }
+
+    // Register the controller
+    application.register("hello", HelloController)
+  </script>
+
+</body>
+</html>
