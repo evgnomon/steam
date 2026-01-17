@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Turbo Frames Demo{% endblock %}
+
+{% block content %}
+  <h1>Turbo Frames Demo</h1>
+
+  <p>Turbo Frames allow you to decompose pages into independent contexts that can be lazy-loaded or navigated independently.</p>
+
+  <h2>Lazy Loading Frame</h2>
+  <p>This frame loads its content after the page renders:</p>
+
+  <turbo-frame id="lazy-quote" src="/frames/quote" loading="lazy">
+    <p><em>Loading quote...</em></p>
+  </turbo-frame>
+
+  <h2>Navigation Frame</h2>
+  <p>Click the tabs below - only the frame content updates, not the whole page:</p>
+
+  <div class="tabs">
+    <a href="/frames/tab/1" data-turbo-frame="tab-content">Tab 1</a>
+    <a href="/frames/tab/2" data-turbo-frame="tab-content">Tab 2</a>
+    <a href="/frames/tab/3" data-turbo-frame="tab-content">Tab 3</a>
+  </div>
+
+  <turbo-frame id="tab-content">
+    <div class="tab-panel">
+      <h3>Tab 1</h3>
+      <p>This is the initial content. Click the tabs above to load different content into this frame.</p>
+    </div>
+  </turbo-frame>
+
+  <style>
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 10px;
+    }
+    .tabs a {
+      padding: 8px 16px;
+      background: #f0f0f0;
+      border-radius: 4px 4px 0 0;
+      text-decoration: none;
+      color: #333;
+    }
+    .tabs a:hover {
+      background: #e0e0e0;
+    }
+    .tab-panel {
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-top: none;
+      background: #fafafa;
+    }
+    turbo-frame {
+      display: block;
+    }
+    #lazy-quote {
+      padding: 15px;
+      background: #f9f9f9;
+      border-left: 4px solid #007bff;
+      margin-bottom: 30px;
+    }
+  </style>
+{% endblock %}

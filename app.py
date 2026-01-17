@@ -1,11 +1,13 @@
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 import asyncio
 import json
+import random
 
 
 async def periodic_broadcaster():
@@ -14,17 +16,19 @@ async def periodic_broadcaster():
         await asyncio.sleep(5)
         if connected_clients:
             timestamp = datetime.now().strftime("%H:%M:%S")
+            message = f"Server ping at {timestamp}"
+            greetings.append(message)
             turbo_stream = f"""
 <turbo-stream action="append" target="greetings">
   <template>
-    <li style="color: #666; font-style: italic;">Server ping at {timestamp}</li>
+    <li style="color: #666; font-style: italic;">{message}</li>
   </template>
 </turbo-stream>"""
             await broadcast(turbo_stream)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     # Start periodic broadcaster on startup
     task = asyncio.create_task(periodic_broadcaster())
     yield
@@ -33,6 +37,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # Store connected WebSocket clients
@@ -46,7 +51,7 @@ HEARTBEAT_INTERVAL = 30  # seconds
 RECEIVE_TIMEOUT = 60  # seconds
 
 
-async def broadcast(message: str, exclude: WebSocket = None):
+async def broadcast(message: str, exclude: Optional[WebSocket] = None):
     """Send message to all connected clients."""
     disconnected = []
     for client in connected_clients:
@@ -78,6 +83,48 @@ async def index(request: Request):
     return templates.TemplateResponse(
         "index.html", {"request": request, "greetings": greetings}
     )
+
+
+@app.get("/about", response_class=HTMLResponse)
+async def about(request: Request):
+    return templates.TemplateResponse("about.html", {"request": request})
+
+
+@app.get("/frames", response_class=HTMLResponse)
+async def frames(request: Request):
+    return templates.TemplateResponse("frames.html", {"request": request})
+
+
+QUOTES = [
+    "The best way to predict the future is to invent it.",
+    "Simplicity is the ultimate sophistication.",
+    "First, solve the problem. Then, write the code.",
+    "Code is like humor. When you have to explain it, it's bad.",
+    "Any fool can write code that a computer can understand. Good programmers write code that humans can understand.",
+]
+
+@app.get("/frames/quote", response_class=HTMLResponse)
+async def frames_quote(request: Request):
+    quote = random.choice(QUOTES)
+    return templates.TemplateResponse("frames/quote.html", {"request": request, "quote": quote})
+
+
+TAB_CONTENT = {
+    1: "This is the content for the first tab. Notice the URL didn't change and the rest of the page stayed intact.",
+    2: "Here's the second tab content. Turbo Frames only replace the matching frame element.",
+    3: "Third tab loaded! Each frame request is a real HTTP request, but only the frame updates.",
+}
+
+@app.get("/frames/tab/{tab_id}", response_class=HTMLResponse)
+async def frames_tab(request: Request, tab_id: int):
+    content = TAB_CONTENT.get(tab_id, "Tab not found")
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    return templates.TemplateResponse("frames/tab.html", {
+        "request": request,
+        "tab_id": tab_id,
+        "content": content,
+        "timestamp": timestamp,
+    })
 
 
 @app.websocket("/ws")

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}About - Steam{% endblock %}
+
+{% block content %}
+  <h1>About</h1>
+
+  <p>This is a demo application showcasing the Hotwire stack with FastAPI:</p>
+
+  <ul>
+    <li><strong>Turbo Drive</strong> - Accelerates navigation by intercepting link clicks and form submissions, fetching pages via AJAX, and swapping the body content without a full page reload.</li>
+    <li><strong>Turbo Streams</strong> - Delivers page updates over WebSocket, allowing real-time updates to the DOM.</li>
+    <li><strong>Stimulus</strong> - A modest JavaScript framework for the HTML you already have, providing controllers that connect to DOM elements.</li>
+  </ul>
+
+  <h2>How Turbo Drive Works</h2>
+
+  <p>When you click links between pages (like Home and About), Turbo Drive:</p>
+
+  <ol>
+    <li>Intercepts the click event</li>
+    <li>Fetches the new page via fetch API</li>
+    <li>Replaces the &lt;body&gt; content</li>
+    <li>Updates the browser history</li>
+  </ol>
+
+  <p>This results in faster navigation without writing any JavaScript!</p>
+{% endblock %}

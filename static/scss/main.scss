@@ -1,0 +1,65 @@
+// Main styles for Stimulus + Turbo + WebSocket app
+
+$font-family: system-ui, sans-serif;
+$max-width: 500px;
+$spacing-sm: 0.25rem;
+$spacing-md: 0.5rem;
+$spacing-lg: 1rem;
+$spacing-xl: 2rem;
+
+$color-bg-light: #f0f0f0;
+$color-text-muted: #666;
+$color-success: green;
+$color-error: red;
+$border-radius: 4px;
+
+body {
+  font-family: $font-family;
+  max-width: $max-width;
+  margin: $spacing-xl auto;
+  padding: $spacing-lg;
+}
+
+.input-group {
+  display: flex;
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+}
+
+input {
+  padding: $spacing-md;
+  font-size: 1rem;
+  flex: 1;
+}
+
+button {
+  padding: $spacing-md $spacing-lg;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  padding: $spacing-md;
+  background: $color-bg-light;
+  margin-bottom: $spacing-sm;
+  border-radius: $border-radius;
+}
+
+.status {
+  font-size: 0.875rem;
+  color: $color-text-muted;
+  margin-bottom: $spacing-lg;
+
+  &.connected {
+    color: $color-success;
+  }
+
+  &.disconnected {
+    color: $color-error;
+  }
+}

@@ -1,61 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stimulus + Turbo + WebSocket</title>
-  <style>
-    body {
-      font-family: system-ui, sans-serif;
-      max-width: 500px;
-      margin: 2rem auto;
-      padding: 1rem;
-    }
-    .input-group {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-    input {
-      padding: 0.5rem;
-      font-size: 1rem;
-      flex: 1;
-    }
-    button {
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-    ul {
-      list-style: none;
-      padding: 0;
-    }
-    li {
-      padding: 0.5rem;
-      background: #f0f0f0;
-      margin-bottom: 0.25rem;
-      border-radius: 4px;
-    }
-    .status {
-      font-size: 0.875rem;
-      color: #666;
-      margin-bottom: 1rem;
-    }
-    .status.connected { color: green; }
-    .status.disconnected { color: red; }
-  </style>
-</head>
-<body>
+{% extends "base.html" %}
 
+{% block title %}Home - Stimulus + Turbo + WebSocket{% endblock %}
+
+{% block content %}
   <h1>Hotwire + WebSocket</h1>
 
   <div data-controller="hello">
     <div class="status" data-hello-target="status">Connecting...</div>
-    
+
     <div class="input-group">
-      <input 
-        data-hello-target="name" 
-        type="text" 
+      <input
+        data-hello-target="name"
+        type="text"
         placeholder="Enter your name"
         data-action="keydown.enter->hello#greet"
         autofocus
@@ -70,148 +26,8 @@
       {% endfor %}
     </ul>
   </div>
+{% endblock %}
 
-  <!-- Hotwire Turbo -->
-  <script type="module" src="https://unpkg.com/@hotwired/turbo@8/dist/turbo.es2017-esm.js"></script>
-
-  <!-- Stimulus -->
-  <script type="module">
-    import { Application, Controller } from "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js"
-    import * as Turbo from "https://unpkg.com/@hotwired/turbo@8/dist/turbo.es2017-esm.js"
-
-    const application = Application.start()
-
-    class HelloController extends Controller {
-      static targets = ["name", "status"]
-
-      // Reconnection settings
-      reconnectDelay = 1000
-      maxReconnectDelay = 30000
-      heartbeatInterval = 25000  // slightly less than server timeout
-
-      connect() {
-        // Build WebSocket URL dynamically from current page location
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-        const host = window.location.host
-        this.wsUrl = `${protocol}//${host}/ws`
-
-        this.connectWebSocket()
-
-        // Reconnect when tab becomes visible
-        document.addEventListener("visibilitychange", this.handleVisibilityChange)
-      }
-
-      disconnect() {
-        document.removeEventListener("visibilitychange", this.handleVisibilityChange)
-        this.cleanup()
-      }
-
-      cleanup() {
-        if (this.heartbeat) {
-          clearInterval(this.heartbeat)
-          this.heartbeat = null
-        }
-        if (this.reconnectTimeout) {
-          clearTimeout(this.reconnectTimeout)
-          this.reconnectTimeout = null
-        }
-        if (this.socket) {
-          this.socket.close()
-          this.socket = null
-        }
-      }
-
-      handleVisibilityChange = () => {
-        if (document.visibilityState === "visible") {
-          // Check if socket is dead and reconnect
-          if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-            this.connectWebSocket()
-          }
-        }
-      }
-
-      connectWebSocket() {
-        // Clean up existing connection
-        this.cleanup()
-
-        this.statusTarget.textContent = "Connecting..."
-        this.statusTarget.className = "status"
-
-        this.socket = new WebSocket(this.wsUrl)
-
-        this.socket.onopen = () => {
-          this.statusTarget.textContent = "Connected"
-          this.statusTarget.className = "status connected"
-          
-          // Reset reconnect delay on successful connection
-          this.reconnectDelay = 1000
-          
-          // Start heartbeat
-          this.heartbeat = setInterval(() => {
-            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-              this.socket.send(JSON.stringify({ type: "ping" }))
-            }
-          }, this.heartbeatInterval)
-        }
-
-        this.socket.onclose = (event) => {
-          this.statusTarget.textContent = `Disconnected - Reconnecting in ${this.reconnectDelay / 1000}s...`
-          this.statusTarget.className = "status disconnected"
-          
-          // Clear heartbeat
-          if (this.heartbeat) {
-            clearInterval(this.heartbeat)
-            this.heartbeat = null
-          }
-          
-          // Reconnect with exponential backoff
-          this.reconnectTimeout = setTimeout(() => {
-            this.connectWebSocket()
-          }, this.reconnectDelay)
-          
-          // Increase delay for next time (exponential backoff)
-          this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay)
-        }
-
-        this.socket.onerror = (error) => {
-          console.error("WebSocket error:", error)
-          this.statusTarget.textContent = "Connection error"
-          this.statusTarget.className = "status disconnected"
-        }
-
-        this.socket.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data)
-            if (msg.type === "ping") {
-              // Respond to server ping with pong
-              this.socket.send(JSON.stringify({ type: "pong" }))
-              return
-            }
-            if (msg.type === "pong") {
-              // Server acknowledged our ping
-              return
-            }
-          } catch (e) {
-            // Not JSON, must be Turbo Stream
-          }
-          
-          // Handle Turbo Stream
-          Turbo.renderStreamMessage(event.data)
-        }
-      }
-
-      greet() {
-        const name = this.nameTarget.value.trim()
-        if (name && this.socket && this.socket.readyState === WebSocket.OPEN) {
-          this.socket.send(name)
-          this.nameTarget.value = ""
-          this.nameTarget.focus()
-        }
-      }
-    }
-
-    application.register("hello", HelloController)
-  </script>
-
-</body>
-</html>
+{% block scripts %}
+  <script type="module" src="/static/js/controllers/hello_controller.js"></script>
+{% endblock %}

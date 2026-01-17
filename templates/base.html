@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="turbo-refresh-method" content="morph">
+  <meta name="turbo-refresh-scroll" content="preserve">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Steam{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <style>
+    nav {
+      margin-bottom: 20px;
+      padding: 10px 0;
+      border-bottom: 1px solid #ddd;
+    }
+    nav a {
+      margin-right: 15px;
+      text-decoration: none;
+      color: #007bff;
+    }
+    nav a:hover {
+      text-decoration: underline;
+    }
+    nav a.active {
+      font-weight: bold;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="/" {% if request.url.path == "/" %}class="active"{% endif %}>Home</a>
+    <a href="/about" {% if request.url.path == "/about" %}class="active"{% endif %}>About</a>
+    <a href="/frames" {% if request.url.path == "/frames" %}class="active"{% endif %}>Frames</a>
+  </nav>
+
+  {% block content %}{% endblock %}
+
+  <!-- Hotwire Turbo + Stimulus -->
+  <script type="module" src="/static/js/app.js"></script>
+  {% block scripts %}{% endblock %}
+
+</body>
+</html>

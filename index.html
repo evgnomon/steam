@@ -4,27 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stimulus Hello</title>
-  <style>
-    body {
-      font-family: system-ui, sans-serif;
-      max-width: 400px;
-      margin: 2rem auto;
-      padding: 1rem;
-    }
-    input {
-      padding: 0.5rem;
-      font-size: 1rem;
-    }
-    button {
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-    #output {
-      margin-left: 0.5rem;
-      font-weight: bold;
-    }
-  </style>
+  <link rel="stylesheet" href="static/css/main.css">
 </head>
 <body>
 
@@ -34,25 +14,7 @@
     <span data-hello-target="output"></span>
   </div>
 
-  <script type="module">
-    import { Application, Controller } from "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js"
-
-    // Start Stimulus application
-    const application = Application.start()
-
-    // Define the Hello controller
-    class HelloController extends Controller {
-      static targets = ["name", "output"]
-
-      greet() {
-        const name = this.nameTarget.value.trim()
-        this.outputTarget.textContent = name ? `Hello, ${name}!` : "Hello!"
-      }
-    }
-
-    // Register the controller
-    application.register("hello", HelloController)
-  </script>
+  <script type="module" src="static/js/controllers/simple_hello_controller.js"></script>
 
 </body>
 </html>
