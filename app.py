@@ -3,18 +3,96 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import Dict, List, Set, Optional
 from datetime import datetime
 import asyncio
 import json
 import random
 
 
+# Stream subscription management
+# Maps stream names to sets of subscribed WebSocket connections
+stream_subscriptions: Dict[str, Set[WebSocket]] = {}
+# Maps WebSocket connections to their subscribed streams (for cleanup)
+client_streams: Dict[WebSocket, Set[str]] = {}
+
+
+def subscribe_to_stream(websocket: WebSocket, stream_name: str) -> bool:
+    """Subscribe a client to a stream. Returns True if newly subscribed."""
+    if stream_name not in stream_subscriptions:
+        stream_subscriptions[stream_name] = set()
+
+    if websocket in stream_subscriptions[stream_name]:
+        return False  # Already subscribed
+
+    stream_subscriptions[stream_name].add(websocket)
+
+    if websocket not in client_streams:
+        client_streams[websocket] = set()
+    client_streams[websocket].add(stream_name)
+
+    print(f"Client subscribed to stream: {stream_name} (total: {len(stream_subscriptions[stream_name])})")
+    return True
+
+
+def unsubscribe_from_stream(websocket: WebSocket, stream_name: str) -> bool:
+    """Unsubscribe a client from a stream. Returns True if was subscribed."""
+    if stream_name not in stream_subscriptions:
+        return False
+
+    if websocket not in stream_subscriptions[stream_name]:
+        return False
+
+    stream_subscriptions[stream_name].discard(websocket)
+
+    if websocket in client_streams:
+        client_streams[websocket].discard(stream_name)
+
+    # Clean up empty stream sets
+    if not stream_subscriptions[stream_name]:
+        del stream_subscriptions[stream_name]
+
+    print(f"Client unsubscribed from stream: {stream_name}")
+    return True
+
+
+def cleanup_client_subscriptions(websocket: WebSocket):
+    """Remove all subscriptions for a disconnected client."""
+    if websocket not in client_streams:
+        return
+
+    streams = list(client_streams[websocket])
+    for stream_name in streams:
+        unsubscribe_from_stream(websocket, stream_name)
+
+    if websocket in client_streams:
+        del client_streams[websocket]
+
+
+async def broadcast_to_stream(stream_name: str, message: str, exclude: Optional[WebSocket] = None):
+    """Send message only to clients subscribed to a specific stream."""
+    if stream_name not in stream_subscriptions:
+        return
+
+    disconnected = []
+    for client in stream_subscriptions[stream_name]:
+        if client == exclude:
+            continue
+        try:
+            await client.send_text(message)
+        except:
+            disconnected.append(client)
+
+    # Clean up disconnected clients
+    for client in disconnected:
+        cleanup_client_subscriptions(client)
+
+
 async def periodic_broadcaster():
-    """Send a message to all clients every 5 seconds."""
+    """Send a message to greetings stream subscribers every 5 seconds."""
     while True:
         await asyncio.sleep(5)
-        if connected_clients:
+        if "greetings" in stream_subscriptions and stream_subscriptions["greetings"]:
             timestamp = datetime.now().strftime("%H:%M:%S")
             message = f"Server ping at {timestamp}"
             greetings.append(message)
@@ -24,7 +102,7 @@ async def periodic_broadcaster():
     <li style="color: #666; font-style: italic;">{message}</li>
   </template>
 </turbo-stream>"""
-            await broadcast(turbo_stream)
+            await broadcast_to_stream("greetings", turbo_stream)
 
 
 @asynccontextmanager
@@ -40,32 +118,12 @@ app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Store connected WebSocket clients
-connected_clients: List[WebSocket] = []
-
 # Simple in-memory storage for demo
 greetings: List[str] = []
 
 # Configuration
 HEARTBEAT_INTERVAL = 30  # seconds
 RECEIVE_TIMEOUT = 60  # seconds
-
-
-async def broadcast(message: str, exclude: Optional[WebSocket] = None):
-    """Send message to all connected clients."""
-    disconnected = []
-    for client in connected_clients:
-        if client == exclude:
-            continue
-        try:
-            await client.send_text(message)
-        except:
-            disconnected.append(client)
-
-    # Clean up disconnected clients
-    for client in disconnected:
-        if client in connected_clients:
-            connected_clients.remove(client)
 
 
 async def heartbeat(websocket: WebSocket):
@@ -93,6 +151,13 @@ async def about(request: Request):
 @app.get("/frames", response_class=HTMLResponse)
 async def frames(request: Request):
     return templates.TemplateResponse("frames.html", {"request": request})
+
+
+@app.get("/streams", response_class=HTMLResponse)
+async def streams(request: Request):
+    return templates.TemplateResponse(
+        "streams.html", {"request": request, "greetings": greetings}
+    )
 
 
 QUOTES = [
@@ -130,7 +195,6 @@ async def frames_tab(request: Request, tab_id: int):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    connected_clients.append(websocket)
 
     # Start heartbeat task
     heartbeat_task = asyncio.create_task(heartbeat(websocket))
@@ -150,24 +214,79 @@ async def websocket_endpoint(websocket: WebSocket):
                 except:
                     break
 
-            # Handle ping/pong
+            # Handle JSON messages (ping/pong, subscribe, unsubscribe)
             try:
                 msg = json.loads(data)
-                if msg.get("type") in ("ping", "pong"):
-                    # Respond to ping with pong
-                    if msg.get("type") == "ping":
-                        await websocket.send_text(json.dumps({"type": "pong"}))
+                msg_type = msg.get("type")
+
+                if msg_type == "ping":
+                    await websocket.send_text(json.dumps({"type": "pong"}))
+                    continue
+                elif msg_type == "pong":
+                    continue
+                elif msg_type == "subscribe":
+                    stream_name = msg.get("stream")
+                    if stream_name:
+                        subscribed = subscribe_to_stream(websocket, stream_name)
+                        await websocket.send_text(json.dumps({
+                            "type": "subscribed",
+                            "stream": stream_name,
+                            "success": subscribed
+                        }))
+                    continue
+                elif msg_type == "unsubscribe":
+                    stream_name = msg.get("stream")
+                    if stream_name:
+                        unsubscribed = unsubscribe_from_stream(websocket, stream_name)
+                        await websocket.send_text(json.dumps({
+                            "type": "unsubscribed",
+                            "stream": stream_name,
+                            "success": unsubscribed
+                        }))
+                    continue
+                elif msg_type == "message":
+                    # Handle messages sent to a specific stream
+                    stream_name = msg.get("stream")
+                    content = msg.get("content", "").strip()
+                    if stream_name and content:
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        if stream_name == "greetings":
+                            greeting = f"Hello, {content}!"
+                            greetings.append(greeting)
+                            turbo_stream = f"""
+<turbo-stream action="append" target="greetings">
+  <template>
+    <li>{greeting}</li>
+  </template>
+</turbo-stream>"""
+                            await broadcast_to_stream("greetings", turbo_stream)
+                        elif stream_name == "notifications":
+                            turbo_stream = f"""
+<turbo-stream action="append" target="notifications">
+  <template>
+    <li><strong>{timestamp}</strong>: {content}</li>
+  </template>
+</turbo-stream>"""
+                            await broadcast_to_stream("notifications", turbo_stream)
+                        elif stream_name == "alerts":
+                            turbo_stream = f"""
+<turbo-stream action="append" target="alerts">
+  <template>
+    <li style="color: #dc3545;"><strong>{timestamp}</strong>: {content}</li>
+  </template>
+</turbo-stream>"""
+                            await broadcast_to_stream("alerts", turbo_stream)
                     continue
             except json.JSONDecodeError:
-                pass  # Not JSON, treat as greeting message
+                pass  # Not JSON, treat as legacy greeting message
 
-            # Handle greeting message
+            # Handle legacy greeting message (plain text)
             name = data.strip()
             if name:
                 greeting = f"Hello, {name}!"
                 greetings.append(greeting)
 
-                # Broadcast Turbo Stream to ALL connected clients
+                # Broadcast to greetings stream subscribers
                 turbo_stream = f"""
 <turbo-stream action="append" target="greetings">
   <template>
@@ -175,17 +294,16 @@ async def websocket_endpoint(websocket: WebSocket):
   </template>
 </turbo-stream>"""
 
-                await broadcast(turbo_stream)
+                await broadcast_to_stream("greetings", turbo_stream)
 
     except WebSocketDisconnect:
         pass
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:
-        # Clean up
+        # Clean up all subscriptions for this client
         heartbeat_task.cancel()
-        if websocket in connected_clients:
-            connected_clients.remove(websocket)
+        cleanup_client_subscriptions(websocket)
 
 
 if __name__ == "__main__":

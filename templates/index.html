@@ -8,6 +8,10 @@
   <div data-controller="hello">
     <div class="status" data-hello-target="status">Connecting...</div>
 
+    <!-- This element subscribes to the "greetings" stream when visible -->
+    <!-- When this element is removed from DOM (e.g., navigating away), it auto-unsubscribes -->
+    <turbo-subscribe stream="greetings"></turbo-subscribe>
+
     <div class="input-group">
       <input
         data-hello-target="name"
@@ -29,5 +33,6 @@
 {% endblock %}
 
 {% block scripts %}
+  <script type="module" src="/static/js/turbo-stream-source.js"></script>
   <script type="module" src="/static/js/controllers/hello_controller.js"></script>
 {% endblock %}
